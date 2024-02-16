@@ -50,6 +50,7 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import android.preference.PreferenceManager;
 import java.util.Hashtable;
 import java.util.Locale;
 
@@ -171,6 +172,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
 
     public static boolean mIsResumedCalled, mHasFocus;
     public static final boolean mHasMultiWindow = (Build.VERSION.SDK_INT >= 24  /* Android 7.0 (N) */);
+    public static boolean mAllowSDLOrientationChanges = false;
 
     // Cursor types
     // private static final int SDL_SYSTEM_CURSOR_NONE = -1;
@@ -269,11 +271,13 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
      */
     protected String[] getLibraries() {
         return new String[] {
+            "c++_shared",
+            "hidapi",
             "SDL2",
-            // "SDL2_image",
-            // "SDL2_mixer",
+            "SDL2_image",
+            "SDL2_mixer",
             // "SDL2_net",
-            // "SDL2_ttf",
+            "SDL2_ttf",
             "main"
         };
     }
@@ -397,6 +401,8 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
 
         mLayout = new RelativeLayout(this);
         mLayout.addView(mSurface);
+        mLayout.setVisibility(View.INVISIBLE); // we will make this visible later through C++ call -> Java
+        setContentView(mLayout);
 
         // Get our current screen orientation and pass it down.
         mCurrentOrientation = SDLActivity.getCurrentOrientation();
@@ -415,6 +421,17 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
         setContentView(mLayout);
 
         setWindowStyle(false);
+
+        mLayout.getViewTreeObserver().addOnGlobalLayoutListener(
+            new ViewTreeObserver.OnGlobalLayoutListener() {
+            public void onGlobalLayout(){
+                Rect r = new Rect();
+                View view = getWindow().getDecorView();
+                view.getWindowVisibleDisplayFrame(r);
+                //Log.v(TAG, "getWindowVisibleDisplayFrame(r): r.left " + r.left + " r.top " + r.top + " r.right " + r.right + " r.bottom " + r.bottom);
+                SDLActivity.onNativeVisibleDisplayFrameChanged(r.left, r.top, r.right, r.bottom);
+            }
+            });
 
         getWindow().getDecorView().setOnSystemUiVisibilityChangeListener(this);
 
@@ -786,9 +803,11 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
                             } else {
                                 int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_VISIBLE;
                                 window.getDecorView().setSystemUiVisibility(flags);
-                                window.addFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
-                                window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-                                SDLActivity.mFullscreenModeActive = false;
+                                Context appContext = context.getApplicationContext();
+                                boolean forceFullScreen = PreferenceManager.getDefaultSharedPreferences(appContext).getBoolean("Force fullscreen", false);
+                                window.addFlags(forceFullScreen ? WindowManager.LayoutParams.FLAG_FULLSCREEN : WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
+                                window.clearFlags(forceFullScreen ? WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN : WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                                SDLActivity.mFullscreenModeActive = forceFullScreen;
                             }
                         }
                     } else {
@@ -911,6 +930,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     public static native void onNativeDropFile(String filename);
     public static native void nativeSetScreenResolution(int surfaceWidth, int surfaceHeight, int deviceWidth, int deviceHeight, float rate);
     public static native void onNativeResize();
+    public static native void onNativeVisibleDisplayFrameChanged(int left, int top, int right, int bottom);
     public static native void onNativeKeyDown(int keycode);
     public static native void onNativeKeyUp(int keycode);
     public static native boolean onNativeSoftReturnKey();
@@ -1023,7 +1043,9 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
         }
 
         Log.v(TAG, "setOrientation() requestedOrientation=" + req + " width=" + w +" height="+ h +" resizable=" + resizable + " hint=" + hint);
-        mSingleton.setRequestedOrientation(req);
+        if (mAllowSDLOrientationChanges && req != -1) {
+            mSingleton.setRequestedOrientation(req);
+        }
     }
 
     /**
