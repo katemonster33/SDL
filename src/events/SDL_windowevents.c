@@ -113,9 +113,11 @@ int SDL_SendWindowEvent(SDL_Window *window, Uint8 windowevent, int data1,
             window->windowed.x = data1;
             window->windowed.y = data2;
         }
+#ifndef __ANDROID__
         if (data1 == window->x && data2 == window->y) {
             return 0;
         }
+#endif
         window->x = data1;
         window->y = data2;
         SDL_OnWindowMoved(window);

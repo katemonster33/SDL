@@ -72,7 +72,8 @@ static void SW_WindowEvent(SDL_Renderer *renderer, const SDL_WindowEvent *event)
 
     if (event->event == SDL_WINDOWEVENT_SIZE_CHANGED) {
         data->surface = NULL;
-        data->window = NULL;
+        // commenting this out seems to prevent the software renderer from crashing on newer/faster Android devices when locking/unlocking and switching app focus, though results in a black screen upon resume occasionally
+        //data->window = NULL;
     }
 }
 

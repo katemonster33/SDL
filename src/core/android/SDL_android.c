@@ -1066,6 +1066,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeSurfaceChanged)(JNIEnv *env, j
             data->egl_surface = SDL_EGL_CreateSurface(_this, (NativeWindowType)data->native_window);
         }
 
+        Android_Window->surface_valid = SDL_FALSE;
         /* GL Context handling is done in the event loop because this function is run from the Java thread */
     }
 #endif
